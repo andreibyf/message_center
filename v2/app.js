@@ -10,6 +10,9 @@
     let activeFilter = 'all';
     let searchQuery = '';
     let sortMode = 'date_desc';
+    let filterState = '';
+    let filterYear = '';
+    let filterAge = '';
 
     const $ = id => document.getElementById(id);
     const $list = $('listScroll');
@@ -21,12 +24,31 @@
     const $toasts = $('toastWrap');
 
     function init() {
+        populateFilters();
         bindTabs();
         bindSearch();
         bindSort();
+        bindFilters();
         bindSend();
         bindDivider();
         refresh();
+    }
+
+    /* ─── Populate filter dropdowns ─── */
+    function populateFilters() {
+        const states = [...new Set(inquiries.map(i => i.state))].sort();
+        const years = [...new Set(inquiries.map(i => i.policyYear))].sort((a, b) => b - a);
+        const $fs = $('filterState');
+        const $fy = $('filterYear');
+        states.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; $fs.appendChild(o); });
+        years.forEach(y => { const o = document.createElement('option'); o.value = y; o.textContent = y; $fy.appendChild(o); });
+    }
+
+    /* ─── Filter change handlers ─── */
+    function bindFilters() {
+        $('filterState').addEventListener('change', e => { filterState = e.target.value; refresh(); });
+        $('filterYear').addEventListener('change', e => { filterYear = e.target.value; refresh(); });
+        $('filterAge').addEventListener('change', e => { filterAge = e.target.value; refresh(); });
     }
 
     /* ─── Tabs ─── */
@@ -117,6 +139,9 @@
                 i.state.toLowerCase().includes(searchQuery)
             );
         }
+        if (filterState) res = res.filter(i => i.state === filterState);
+        if (filterYear) res = res.filter(i => String(i.policyYear) === filterYear);
+        if (filterAge) res = res.filter(i => i.ageDays <= parseInt(filterAge));
         if (sortMode === 'date_desc') res.sort((a, b) => new Date(b.originDate) - new Date(a.originDate));
         else if (sortMode === 'date_asc') res.sort((a, b) => new Date(a.originDate) - new Date(b.originDate));
         else if (sortMode === 'age_desc') res.sort((a, b) => b.ageDays - a.ageDays);
