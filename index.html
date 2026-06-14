@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NCCI Message Center — Insurance Carrier Inquiry Response Portal">
+    <title>NCCI Message Center — Carrier Response Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <rect width="28" height="28" rx="6" fill="url(#logo-grad)"/>
+                        <path d="M7 14L12 9L17 14L12 19Z" fill="white" opacity="0.9"/>
+                        <path d="M11 14L16 9L21 14L16 19Z" fill="white" opacity="0.6"/>
+                        <defs>
+                            <linearGradient id="logo-grad" x1="0" y1="0" x2="28" y2="28">
+                                <stop stop-color="#4F6BF6"/>
+                                <stop offset="1" stop-color="#2DD4A8"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-title">NCCI</span>
+                    <span class="logo-subtitle">Message Center</span>
+                </div>
+            </div>
+        </div>
+        <div class="top-bar-center">
+            <div class="search-bar" id="globalSearch">
+                <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search inquiries by ID, claim, policy, or analyst..." autocomplete="off">
+            </div>
+        </div>
+        <div class="top-bar-right">
+            <button class="icon-btn" id="notificationBtn" title="Notifications">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 2C7.24 2 5 4.24 5 7V11L3 13V14H17V13L15 11V7C15 4.24 12.76 2 10 2Z" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M8 14V15C8 16.1 8.9 17 10 17C11.1 17 12 16.1 12 15V14" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                <span class="notification-badge" id="notifBadge">5</span>
+            </button>
+            <div class="user-avatar" id="userAvatar" title="Carrier: Acme Insurance Co.">
+                <span>AI</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-filter="all" id="navAll">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <rect x="2" y="2" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                        <rect x="10" y="2" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                        <rect x="2" y="10" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                        <rect x="10" y="10" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                    <span>All Inquiries</span>
+                    <span class="nav-count" id="countAll">0</span>
+                </a>
+                <a href="#" class="nav-item" data-filter="open" id="navOpen">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5"/>
+                        <circle cx="9" cy="9" r="3" fill="currentColor"/>
+                    </svg>
+                    <span>Open</span>
+                    <span class="nav-count" id="countOpen">0</span>
+                </a>
+                <a href="#" class="nav-item" data-filter="pending_review" id="navPending">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M9 5V9L12 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <span>Pending Review</span>
+                    <span class="nav-count" id="countPending">0</span>
+                </a>
+                <a href="#" class="nav-item" data-filter="reopened" id="navReopened">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <path d="M3 9C3 5.69 5.69 3 9 3C12.31 3 15 5.69 15 9C15 12.31 12.31 15 9 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M3 5V9H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Reopened</span>
+                    <span class="nav-count" id="countReopened">0</span>
+                </a>
+                <a href="#" class="nav-item" data-filter="accepted" id="navAccepted">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M6 9L8 11L12 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Accepted</span>
+                    <span class="nav-count" id="countAccepted">0</span>
+                </a>
+                <a href="#" class="nav-item" data-filter="closed" id="navClosed">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M6 6L12 12M12 6L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <span>Closed</span>
+                    <span class="nav-count" id="countClosed">0</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-divider"></div>
+
+            <div class="sidebar-section">
+                <h4 class="sidebar-section-title">Quick Filters</h4>
+                <div class="filter-group">
+                    <label class="filter-label" for="filterState">State</label>
+                    <select id="filterState" class="filter-select">
+                        <option value="">All States</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label" for="filterYear">Policy Year</label>
+                    <select id="filterYear" class="filter-select">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label" for="filterAge">Age</label>
+                    <select id="filterAge" class="filter-select">
+                        <option value="">Any Age</option>
+                        <option value="7">≤ 7 days</option>
+                        <option value="14">≤ 14 days</option>
+                        <option value="30">≤ 30 days</option>
+                        <option value="60">≤ 60 days</option>
+                        <option value="90">≤ 90 days</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="sidebar-divider"></div>
+
+            <div class="sidebar-section">
+                <h4 class="sidebar-section-title">Status Legend</h4>
+                <div class="legend-list" id="statusLegend">
+                    <div class="legend-item"><span class="status-dot open"></span><span>Open — Awaiting carrier response</span></div>
+                    <div class="legend-item"><span class="status-dot pending_review"></span><span>Pending — Awaiting NCCI review</span></div>
+                    <div class="legend-item"><span class="status-dot accepted"></span><span>Accepted — Response approved</span></div>
+                    <div class="legend-item"><span class="status-dot reopened"></span><span>Reopened — Needs further action</span></div>
+                    <div class="legend-item"><span class="status-dot closed"></span><span>Closed — Resolved</span></div>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="stats-card">
+                    <div class="stats-row">
+                        <span class="stats-label">Avg. Response Time</span>
+                        <span class="stats-value" id="statsAvgAge">—</span>
+                    </div>
+                    <div class="stats-row">
+                        <span class="stats-label">Needs Attention</span>
+                        <span class="stats-value urgent" id="statsUrgent">—</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Summary Cards -->
+            <div class="summary-strip" id="summaryStrip">
+                <div class="summary-card" data-status="all">
+                    <div class="summary-number" id="summaryTotal">0</div>
+                    <div class="summary-label">Total</div>
+                </div>
+                <div class="summary-card open" data-status="open">
+                    <div class="summary-number" id="summaryOpen">0</div>
+                    <div class="summary-label">Open</div>
+                </div>
+                <div class="summary-card pending" data-status="pending_review">
+                    <div class="summary-number" id="summaryPending">0</div>
+                    <div class="summary-label">Pending</div>
+                </div>
+                <div class="summary-card reopened" data-status="reopened">
+                    <div class="summary-number" id="summaryReopened">0</div>
+                    <div class="summary-label">Reopened</div>
+                </div>
+                <div class="summary-card accepted" data-status="accepted">
+                    <div class="summary-number" id="summaryAccepted">0</div>
+                    <div class="summary-label">Accepted</div>
+                </div>
+                <div class="summary-card closed" data-status="closed">
+                    <div class="summary-number" id="summaryClosed">0</div>
+                    <div class="summary-label">Closed</div>
+                </div>
+            </div>
+
+            <!-- Inquiry Table -->
+            <div class="table-container" id="tableContainer">
+                <div class="table-header">
+                    <h2 class="table-title">Inquiries</h2>
+                    <div class="table-actions">
+                        <button class="btn-secondary" id="exportBtn">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M2 11V13C2 13.55 2.45 14 3 14H13C13.55 14 14 13.55 14 13V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                <path d="M8 2V10M8 10L5 7M8 10L11 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Export
+                        </button>
+                        <div class="sort-control">
+                            <label for="sortSelect">Sort:</label>
+                            <select id="sortSelect" class="filter-select compact">
+                                <option value="date_desc">Newest First</option>
+                                <option value="date_asc">Oldest First</option>
+                                <option value="age_desc">Oldest Age</option>
+                                <option value="age_asc">Newest Age</option>
+                                <option value="id_asc">ID ↑</option>
+                                <option value="id_desc">ID ↓</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <table class="inquiry-table" id="inquiryTable">
+                    <thead>
+                        <tr>
+                            <th class="col-status">Status</th>
+                            <th class="col-id">Inquiry ID</th>
+                            <th class="col-claim">Claim #</th>
+                            <th class="col-policy">Policy #</th>
+                            <th class="col-state">State</th>
+                            <th class="col-year">Policy Year</th>
+                            <th class="col-analyst">Analyst</th>
+                            <th class="col-date">Originated</th>
+                            <th class="col-age">Age</th>
+                            <th class="col-preview">Subject</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inquiryTableBody">
+                        <!-- Rows injected by JS -->
+                    </tbody>
+                </table>
+
+                <div class="empty-state hidden" id="emptyState">
+                    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                        <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+                        <path d="M22 28H42M22 36H36" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+                    </svg>
+                    <h3>No inquiries found</h3>
+                    <p>Try adjusting your filters or search query.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Detail Slide-over Panel -->
+    <div class="panel-overlay hidden" id="panelOverlay"></div>
+    <aside class="detail-panel hidden" id="detailPanel">
+        <div class="panel-header">
+            <div class="panel-header-top">
+                <h2 class="panel-inquiry-id" id="panelInquiryId">—</h2>
+                <button class="icon-btn panel-close" id="panelCloseBtn" title="Close">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="panel-status-bar">
+                <span class="status-badge" id="panelStatusBadge">—</span>
+                <span class="panel-age" id="panelAge">—</span>
+            </div>
+        </div>
+
+        <div class="panel-body" id="panelBody">
+            <!-- Claim Info Section -->
+            <section class="panel-section">
+                <h3 class="panel-section-title">Claim Information</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Claim Number</span>
+                        <span class="info-value" id="panelClaim">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Policy Number</span>
+                        <span class="info-value" id="panelPolicy">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">State</span>
+                        <span class="info-value" id="panelState">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Policy Year</span>
+                        <span class="info-value" id="panelYear">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Originated</span>
+                        <span class="info-value" id="panelDate">—</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">NCCI Analyst</span>
+                        <span class="info-value" id="panelAnalyst">—</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Inquiry Message Section -->
+            <section class="panel-section">
+                <h3 class="panel-section-title">Inquiry Message</h3>
+                <div class="message-bubble ncci" id="panelMessage">
+                    —
+                </div>
+            </section>
+
+            <!-- Response History -->
+            <section class="panel-section">
+                <h3 class="panel-section-title">Response History</h3>
+                <div class="response-history" id="responseHistory">
+                    <p class="no-responses">No responses yet.</p>
+                </div>
+            </section>
+
+            <!-- Response Compose -->
+            <section class="panel-section compose-section">
+                <h3 class="panel-section-title">Compose Response</h3>
+                <div class="compose-area">
+                    <textarea id="responseTextarea" rows="5" placeholder="Type your response to the NCCI inquiry..."></textarea>
+                    <div class="compose-footer">
+                        <div class="action-select-group">
+                            <label for="actionSelect">Update Status:</label>
+                            <select id="actionSelect" class="filter-select compact">
+                                <option value="">— No Change —</option>
+                                <option value="open">Open</option>
+                                <option value="pending_review">Pending Review</option>
+                                <option value="accepted">Accepted</option>
+                                <option value="reopened">Reopened</option>
+                                <option value="closed">Closed</option>
+                            </select>
+                        </div>
+                        <div class="compose-buttons">
+                            <button class="btn-secondary" id="saveDraftBtn">Save Draft</button>
+                            <button class="btn-primary" id="submitResponseBtn">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                    <path d="M2 8L7 13L14 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Submit Response
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </aside>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
