@@ -690,12 +690,15 @@
 
     function renderModalFooter() {
         const footer = $('modalFooter');
+        const deptGroup = $('newDept').closest('.form-group');
         if (activeRole === 'validator') {
+            deptGroup.style.display = 'none';
             footer.innerHTML = `
                 <button class="btn-secondary" id="saveDraftBtn">Save as Draft</button>
                 <button class="btn-primary" id="submitInquiryBtn">Create & Begin Review</button>
             `;
         } else {
+            deptGroup.style.display = '';
             footer.innerHTML = `
                 <button class="btn-secondary" id="saveDraftBtn">Save as Draft</button>
                 <button class="btn-primary" id="submitInquiryBtn">Submit to Analyst</button>
@@ -725,7 +728,7 @@
         if (activeRole === 'validator') {
             // Validator-initiated: they are the analyst, dept comes from dropdown
             const v = VALIDATORS[Math.floor(Math.random() * VALIDATORS.length)];
-            originator = { name: v.name, dept: dept, role: v.title };
+            originator = { name: v.name, dept: 'Data Analytics', role: v.title };
             validator = v;
             activities = [
                 { action: 'created', by: v.name, role: v.title, date: now, detail: 'Inquiry created by Data Analyst (self-initiated)' },
