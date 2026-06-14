@@ -257,16 +257,8 @@
         // Pipeline
         renderPipeline(inq);
 
-        // Details tab
-        setText('dClaim', inq.claimNumber);
-        setText('dPolicy', inq.policyNumber);
-        setText('dState', inq.state);
-        setText('dYear', inq.policyYear);
-        setText('dCarrier', inq.carrier);
-        setText('dOriginator', `${inq.originator.name} (${inq.originator.role}, ${inq.originator.dept})`);
-        setText('dValidator', inq.validator ? `${inq.validator.name} (${inq.validator.title})` : 'Unassigned');
-        setText('dCreated', longDate(inq.createdDate));
-        $('dBody').textContent = inq.body;
+        // Details tab (editable if draft)
+        renderDetailsTab(inq);
 
         // Carrier thread
         renderThread(inq);
@@ -313,6 +305,72 @@
     function switchTab(tab) {
         document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tab === tab));
+    }
+
+    // ── Render Details Tab (editable for drafts) ──
+    function renderDetailsTab(inq) {
+        const tab = $('tabDetails');
+        const isDraft = inq.status === 'draft';
+
+        if (isDraft) {
+            // Build state options
+            const stateOpts = STATES.map(s => `<option value="${s}" ${s === inq.state ? 'selected' : ''}>${s}</option>`).join('');
+            // Build carrier options
+            const carrierOpts = CARRIERS.map(c => `<option value="${esc(c)}" ${c === inq.carrier ? 'selected' : ''}>${esc(c)}</option>`).join('');
+            // Build year options
+            const yearOpts = [2026,2025,2024,2023].map(y => `<option value="${y}" ${y === inq.policyYear ? 'selected' : ''}>${y}</option>`).join('');
+
+            tab.innerHTML = `
+                <div class="draft-edit-banner">✏️ This inquiry is a draft — all fields are editable.</div>
+                <div class="info-grid">
+                    <div class="info-item"><label class="info-label" for="eClaim">Claim #</label><input class="form-input compact" id="eClaim" value="${esc(inq.claimNumber)}"></div>
+                    <div class="info-item"><label class="info-label" for="ePolicy">Policy #</label><input class="form-input compact" id="ePolicy" value="${esc(inq.policyNumber)}"></div>
+                    <div class="info-item"><label class="info-label" for="eState">State</label><select class="filter-select" id="eState">${stateOpts}</select></div>
+                    <div class="info-item"><label class="info-label" for="eYear">Policy Year</label><select class="filter-select" id="eYear">${yearOpts}</select></div>
+                    <div class="info-item"><label class="info-label" for="eCarrier">Carrier</label><select class="filter-select" id="eCarrier">${carrierOpts}</select></div>
+                    <div class="info-item"><span class="info-label">Originator</span><span class="info-value">${esc(inq.originator.name)} (${esc(inq.originator.role)}, ${esc(inq.originator.dept)})</span></div>
+                </div>
+                <div class="form-group full" style="margin-top:12px">
+                    <label class="info-label" for="eSubject">Subject</label>
+                    <input class="form-input" id="eSubject" value="${esc(inq.subject)}">
+                </div>
+                <div class="form-group full" style="margin-top:10px">
+                    <label class="info-label" for="eBody">Description</label>
+                    <textarea class="form-input" id="eBody" rows="6">${esc(inq.body)}</textarea>
+                </div>
+            `;
+        } else {
+            tab.innerHTML = `
+                <div class="info-grid">
+                    <div class="info-item"><span class="info-label">Claim #</span><span class="info-value">${esc(inq.claimNumber)}</span></div>
+                    <div class="info-item"><span class="info-label">Policy #</span><span class="info-value">${esc(inq.policyNumber)}</span></div>
+                    <div class="info-item"><span class="info-label">State</span><span class="info-value">${esc(inq.state)}</span></div>
+                    <div class="info-item"><span class="info-label">Policy Year</span><span class="info-value">${inq.policyYear}</span></div>
+                    <div class="info-item"><span class="info-label">Carrier</span><span class="info-value">${esc(inq.carrier)}</span></div>
+                    <div class="info-item"><span class="info-label">Originator</span><span class="info-value">${esc(inq.originator.name)} (${esc(inq.originator.role)}, ${esc(inq.originator.dept)})</span></div>
+                    <div class="info-item"><span class="info-label">Analyst</span><span class="info-value">${inq.validator ? esc(inq.validator.name) + ' (' + esc(inq.validator.title) + ')' : 'Unassigned'}</span></div>
+                    <div class="info-item"><span class="info-label">Created</span><span class="info-value">${longDate(inq.createdDate)}</span></div>
+                </div>
+                <h4 class="section-title">Inquiry Description</h4>
+                <div class="inquiry-body">${esc(inq.body)}</div>
+            `;
+        }
+    }
+
+    // ── Save Draft Edits ──
+    function saveDraftEdits(inq) {
+        const eClaim = $('eClaim'), ePolicy = $('ePolicy'), eState = $('eState'),
+              eYear = $('eYear'), eCarrier = $('eCarrier'), eSubject = $('eSubject'), eBody = $('eBody');
+        if (!eClaim) return; // Not in edit mode
+        inq.claimNumber = eClaim.value.trim() || inq.claimNumber;
+        inq.policyNumber = ePolicy.value.trim() || inq.policyNumber;
+        inq.state = eState.value;
+        inq.policyYear = parseInt(eYear.value);
+        inq.carrier = eCarrier.value;
+        inq.subject = eSubject.value.trim() || inq.subject;
+        inq.body = eBody.value.trim() || inq.body;
+        // Update header to reflect changes
+        $('panelSubject').textContent = inq.subject;
     }
 
     // ── Pipeline ──
@@ -450,6 +508,7 @@
         } else { // originator
             switch (inq.status) {
                 case 'draft':
+                    html += btn('secondary', 'Save Changes', 'saveDraft');
                     html += btn('primary', 'Submit to Analyst', 'submitDraft'); break;
                 case 'awaiting_originator':
                     html += btn('success', 'Approve Response', 'approveResponse');
@@ -505,7 +564,15 @@
                 changeStatus(inq, 'closed', `Inquiry closed by ${validatorName}`);
                 toast('Inquiry closed.');
                 break;
+            case 'saveDraft':
+                saveDraftEdits(inq);
+                refresh();
+                openPanel(inq.id);
+                toast('Draft saved.');
+                return;
             case 'submitDraft':
+                saveDraftEdits(inq);
+                if (!inq.validator) inq.validator = VALIDATORS[Math.floor(Math.random() * VALIDATORS.length)];
                 changeStatus(inq, 'submitted', `Submitted to Data Analyst queue by ${originatorName}`);
                 toast('Inquiry submitted to analyst queue.');
                 break;
