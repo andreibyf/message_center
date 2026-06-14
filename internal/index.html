@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NCCI Internal Message Center — Inquiry Workflow Management">
+    <title>NCCI Internal — Inquiry Workflow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- ═══ Top Bar ═══ -->
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <div class="logo">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <rect width="28" height="28" rx="6" fill="url(#lg)"/>
+                    <path d="M7 14L12 9L17 14L12 19Z" fill="#fff" opacity=".9"/>
+                    <path d="M11 14L16 9L21 14L16 19Z" fill="#fff" opacity=".6"/>
+                    <defs><linearGradient id="lg" x1="0" y1="0" x2="28" y2="28"><stop stop-color="#6366F1"/><stop offset="1" stop-color="#06B6D4"/></linearGradient></defs>
+                </svg>
+                <div class="logo-text">
+                    <span class="logo-title">NCCI</span>
+                    <span class="logo-subtitle">Internal Portal</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Role Switcher -->
+        <div class="role-switcher" id="roleSwitcher">
+            <button class="role-btn active" data-role="validator" id="roleValidator">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M2 14C2 11.24 4.69 9 8 9C11.31 9 14 11.24 14 14" stroke="currentColor" stroke-width="1.3"/></svg>
+                Data Analyst
+            </button>
+            <button class="role-btn" data-role="originator" id="roleOriginator">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 7H11M5 9.5H9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                AES / RMA
+            </button>
+        </div>
+
+        <div class="top-bar-right">
+            <button class="action-required-btn" id="actionRequiredBtn" title="Items needing your attention">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2L14 13H2L8 2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 7V9.5M8 11.5V11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                Action Required
+                <span class="action-badge" id="actionBadge">0</span>
+            </button>
+            <button class="btn-create" id="newInquiryBtn">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                New Inquiry
+            </button>
+        </div>
+    </header>
+
+    <!-- ═══ App Layout ═══ -->
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav" id="sidebarNav">
+                <a href="#" class="nav-item active" data-filter="all"><span class="nav-dot all"></span>All Inquiries <span class="nav-count" id="cAll">0</span></a>
+                <a href="#" class="nav-item" data-filter="action_required"><span class="nav-dot action"></span>Action Required <span class="nav-count urgent" id="cAction">0</span></a>
+                <div class="nav-divider"></div>
+                <span class="nav-group-label">Workflow Stage</span>
+                <a href="#" class="nav-item" data-filter="draft"><span class="nav-dot draft"></span>Drafts <span class="nav-count" id="cDraft">0</span></a>
+                <a href="#" class="nav-item" data-filter="submitted"><span class="nav-dot submitted"></span>Submitted <span class="nav-count" id="cSubmitted">0</span></a>
+                <a href="#" class="nav-item" data-filter="under_review"><span class="nav-dot under_review"></span>Under Review <span class="nav-count" id="cUnderReview">0</span></a>
+                <a href="#" class="nav-item" data-filter="sent_to_carrier"><span class="nav-dot sent_to_carrier"></span>With Carrier <span class="nav-count" id="cSentCarrier">0</span></a>
+                <a href="#" class="nav-item" data-filter="carrier_responded"><span class="nav-dot carrier_responded"></span>Carrier Responded <span class="nav-count" id="cCarrierResp">0</span></a>
+                <a href="#" class="nav-item" data-filter="validator_review"><span class="nav-dot validator_review"></span>Validator Review <span class="nav-count" id="cValidatorRev">0</span></a>
+                <a href="#" class="nav-item" data-filter="awaiting_originator"><span class="nav-dot awaiting_originator"></span>Awaiting Originator <span class="nav-count" id="cAwaitOrig">0</span></a>
+                <a href="#" class="nav-item" data-filter="additional_info"><span class="nav-dot additional_info"></span>Add'l Info Needed <span class="nav-count" id="cAddlInfo">0</span></a>
+                <a href="#" class="nav-item" data-filter="approved"><span class="nav-dot approved"></span>Approved <span class="nav-count" id="cApproved">0</span></a>
+                <a href="#" class="nav-item" data-filter="closed"><span class="nav-dot closed"></span>Closed <span class="nav-count" id="cClosed">0</span></a>
+            </nav>
+
+            <div class="nav-divider"></div>
+            <div class="sidebar-section">
+                <span class="nav-group-label">Quick Filters</span>
+                <div class="filter-group">
+                    <label for="filterDept">Department</label>
+                    <select id="filterDept" class="filter-select"><option value="">All</option><option value="AES">AES</option><option value="RMA">RMA</option></select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterState">State</label>
+                    <select id="filterState" class="filter-select"><option value="">All States</option></select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterYear">Policy Year</label>
+                    <select id="filterYear" class="filter-select"><option value="">All Years</option></select>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-header">
+                <div class="search-bar">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <input type="text" id="searchInput" placeholder="Search by ID, claim, policy, analyst, or subject…">
+                </div>
+                <div class="content-actions">
+                    <select id="sortSelect" class="filter-select compact">
+                        <option value="date_desc">Newest First</option>
+                        <option value="date_asc">Oldest First</option>
+                        <option value="age_desc">Longest Open</option>
+                        <option value="sla_desc">Longest with Carrier</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-wrap" id="tableWrap">
+                <table class="inq-table" id="inqTable">
+                    <thead>
+                        <tr>
+                            <th class="col-status">Status</th>
+                            <th class="col-id">Inquiry ID</th>
+                            <th class="col-dept">Dept</th>
+                            <th class="col-claim">Claim #</th>
+                            <th class="col-state">State</th>
+                            <th class="col-carrier">Carrier</th>
+                            <th class="col-originator">Originator</th>
+                            <th class="col-validator">Analyst</th>
+                            <th class="col-date">Created</th>
+                            <th class="col-age">Age</th>
+                            <th class="col-sla">With Carrier</th>
+                            <th class="col-subject">Subject</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+                <div class="empty-state hidden" id="emptyState">
+                    <h3>No inquiries found</h3>
+                    <p>Adjust your filters or search.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ═══ Detail Panel ═══ -->
+    <div class="overlay hidden" id="overlay"></div>
+    <aside class="detail-panel hidden" id="detailPanel">
+        <div class="panel-header">
+            <div class="panel-top-row">
+                <h2 id="panelId">—</h2>
+                <button class="icon-btn" id="panelClose" title="Close">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14M14 4L4 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <p class="panel-subject" id="panelSubject">—</p>
+            <div class="panel-badges">
+                <span class="badge" id="panelBadge">—</span>
+                <span class="badge dept-badge" id="panelDept">—</span>
+                <span class="panel-age" id="panelAge">—</span>
+                <span class="sla-tag hidden" id="panelSLA">—</span>
+            </div>
+        </div>
+
+        <!-- Workflow Pipeline -->
+        <div class="pipeline-wrap">
+            <div class="pipeline" id="pipeline"></div>
+        </div>
+
+        <!-- Panel Tabs -->
+        <div class="panel-tabs" id="panelTabs">
+            <button class="ptab active" data-tab="details">Details</button>
+            <button class="ptab" data-tab="conversation">Carrier Thread</button>
+            <button class="ptab" data-tab="notes">Internal Notes</button>
+            <button class="ptab" data-tab="timeline">Activity Log</button>
+        </div>
+
+        <div class="panel-body" id="panelBody">
+            <!-- Tab: Details -->
+            <div class="tab-content active" data-tab="details" id="tabDetails">
+                <div class="info-grid">
+                    <div class="info-item"><span class="info-label">Claim #</span><span class="info-value" id="dClaim">—</span></div>
+                    <div class="info-item"><span class="info-label">Policy #</span><span class="info-value" id="dPolicy">—</span></div>
+                    <div class="info-item"><span class="info-label">State</span><span class="info-value" id="dState">—</span></div>
+                    <div class="info-item"><span class="info-label">Policy Year</span><span class="info-value" id="dYear">—</span></div>
+                    <div class="info-item"><span class="info-label">Carrier</span><span class="info-value" id="dCarrier">—</span></div>
+                    <div class="info-item"><span class="info-label">Originator</span><span class="info-value" id="dOriginator">—</span></div>
+                    <div class="info-item"><span class="info-label">Analyst</span><span class="info-value" id="dValidator">—</span></div>
+                    <div class="info-item"><span class="info-label">Created</span><span class="info-value" id="dCreated">—</span></div>
+                </div>
+                <h4 class="section-title">Inquiry Description</h4>
+                <div class="inquiry-body" id="dBody">—</div>
+            </div>
+
+            <!-- Tab: Carrier Conversation -->
+            <div class="tab-content" data-tab="conversation" id="tabConversation">
+                <div class="thread" id="carrierThread"></div>
+                <div class="compose-area" id="composeCarrier">
+                    <textarea id="carrierReply" rows="3" placeholder="Message to carrier…"></textarea>
+                    <button class="btn-primary" id="sendToCarrierBtn">Send to Carrier</button>
+                </div>
+            </div>
+
+            <!-- Tab: Internal Notes -->
+            <div class="tab-content" data-tab="notes" id="tabNotes">
+                <div class="notes-list" id="notesList"></div>
+                <div class="compose-area">
+                    <textarea id="noteInput" rows="2" placeholder="Add internal note (not visible to carrier)…"></textarea>
+                    <button class="btn-secondary" id="addNoteBtn">Add Note</button>
+                </div>
+            </div>
+
+            <!-- Tab: Activity Timeline -->
+            <div class="tab-content" data-tab="timeline" id="tabTimeline">
+                <div class="timeline" id="timelineList"></div>
+            </div>
+        </div>
+
+        <!-- Action Bar -->
+        <div class="panel-action-bar" id="actionBar">
+            <!-- Dynamic buttons injected by JS based on role + status -->
+        </div>
+    </aside>
+
+    <!-- ═══ New Inquiry Modal ═══ -->
+    <div class="modal-overlay hidden" id="modalOverlay">
+        <div class="modal" id="newInquiryModal">
+            <div class="modal-header">
+                <h2>New Inquiry</h2>
+                <button class="icon-btn" id="modalClose">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14M14 4L4 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group"><label for="newDept">Department</label><select id="newDept" class="filter-select"><option value="AES">AES</option><option value="RMA">RMA</option></select></div>
+                    <div class="form-group"><label for="newState">State</label><select id="newState" class="filter-select"><option value="">Select…</option></select></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label for="newClaim">Claim Number</label><input id="newClaim" type="text" class="form-input" placeholder="WC-FL-24XXXXX"></div>
+                    <div class="form-group"><label for="newPolicy">Policy Number</label><input id="newPolicy" type="text" class="form-input" placeholder="WCP-24XXXXXXX"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label for="newYear">Policy Year</label><select id="newYear" class="filter-select"><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select></div>
+                    <div class="form-group"><label for="newCarrier">Carrier</label><select id="newCarrier" class="filter-select"></select></div>
+                </div>
+                <div class="form-group full"><label for="newSubject">Subject</label><input id="newSubject" type="text" class="form-input" placeholder="Brief description of inquiry…"></div>
+                <div class="form-group full"><label for="newBody">Description</label><textarea id="newBody" rows="5" class="form-input" placeholder="Detailed inquiry description…"></textarea></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="saveDraftBtn">Save as Draft</button>
+                <button class="btn-primary" id="submitInquiryBtn">Submit to Analyst</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

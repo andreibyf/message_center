@@ -1,0 +1,604 @@
+/**
+ * NCCI Internal Message Center — Application Logic
+ * Role-based views, auto-routing, workflow actions, activity timeline.
+ */
+(function () {
+    'use strict';
+
+    let inquiries = [...INTERNAL_INQUIRIES];
+    let filtered = [];
+    let activeRole = 'validator'; // 'validator' | 'originator'
+    let activeFilter = 'all';
+    let activeId = null;
+    let searchQuery = '';
+    let sortMode = 'date_desc';
+    let filterDept = '';
+    let filterState = '';
+    let filterYear = '';
+
+    const $ = id => document.getElementById(id);
+    const $body = $('tableBody');
+    const $empty = $('emptyState');
+    const $panel = $('detailPanel');
+    const $overlay = $('overlay');
+    const $toasts = $('toastContainer');
+
+    const PIPELINE_STEPS = [
+        { key: 'submitted', label: 'Submitted' },
+        { key: 'under_review', label: 'Analyst Review' },
+        { key: 'sent_to_carrier', label: 'With Carrier' },
+        { key: 'carrier_responded', label: 'Carrier Resp.' },
+        { key: 'validator_review', label: 'Validator Review' },
+        { key: 'awaiting_originator', label: 'Originator Review' },
+        { key: 'approved', label: 'Approved' },
+        { key: 'closed', label: 'Closed' },
+    ];
+
+    function init() {
+        populateFilters();
+        bindRoleSwitcher();
+        bindNav();
+        bindSearch();
+        bindSort();
+        bindFilters();
+        bindPanelClose();
+        bindPanelTabs();
+        bindModal();
+        bindNotes();
+        bindCarrierReply();
+        bindActionRequired();
+        refresh();
+    }
+
+    // ── Populate dropdown filters ──
+    function populateFilters() {
+        const states = [...new Set(inquiries.map(i => i.state))].sort();
+        const years = [...new Set(inquiries.map(i => i.policyYear))].sort((a, b) => b - a);
+        const $fs = $('filterState'), $fy = $('filterYear');
+        states.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; $fs.appendChild(o); });
+        years.forEach(y => { const o = document.createElement('option'); o.value = y; o.textContent = y; $fy.appendChild(o); });
+        // Modal states & carriers
+        const $ns = $('newState'), $nc = $('newCarrier');
+        states.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; $ns.appendChild(o); });
+        CARRIERS.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; $nc.appendChild(o); });
+    }
+
+    // ── Role Switcher ──
+    function bindRoleSwitcher() {
+        document.querySelectorAll('.role-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                activeRole = btn.dataset.role;
+                refresh();
+                if (activeId) renderActions(inquiries.find(i => i.id === activeId));
+            });
+        });
+    }
+
+    // ── Sidebar Nav ──
+    function bindNav() {
+        document.querySelectorAll('.nav-item[data-filter]').forEach(el => {
+            el.addEventListener('click', e => {
+                e.preventDefault();
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                el.classList.add('active');
+                activeFilter = el.dataset.filter;
+                refresh();
+            });
+        });
+    }
+
+    // ── Search ──
+    function bindSearch() {
+        $('searchInput').addEventListener('input', debounce(e => {
+            searchQuery = e.target.value.trim().toLowerCase();
+            refresh();
+        }, 200));
+    }
+
+    // ── Sort ──
+    function bindSort() {
+        $('sortSelect').addEventListener('change', e => { sortMode = e.target.value; refresh(); });
+    }
+
+    // ── Filters ──
+    function bindFilters() {
+        $('filterDept').addEventListener('change', e => { filterDept = e.target.value; refresh(); });
+        $('filterState').addEventListener('change', e => { filterState = e.target.value; refresh(); });
+        $('filterYear').addEventListener('change', e => { filterYear = e.target.value; refresh(); });
+    }
+
+    // ── Action Required button ──
+    function bindActionRequired() {
+        $('actionRequiredBtn').addEventListener('click', () => {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            const el = document.querySelector('.nav-item[data-filter="action_required"]');
+            if (el) { el.classList.add('active'); }
+            activeFilter = 'action_required';
+            refresh();
+        });
+    }
+
+    // ── Refresh ──
+    function refresh() {
+        let res = [...inquiries];
+
+        // Status filter
+        if (activeFilter === 'action_required') {
+            res = res.filter(i => isActionRequired(i));
+        } else if (activeFilter !== 'all') {
+            res = res.filter(i => i.status === activeFilter);
+        }
+
+        // Search
+        if (searchQuery) {
+            res = res.filter(i =>
+                i.id.toLowerCase().includes(searchQuery) ||
+                i.claimNumber.toLowerCase().includes(searchQuery) ||
+                i.policyNumber.toLowerCase().includes(searchQuery) ||
+                i.subject.toLowerCase().includes(searchQuery) ||
+                (i.originator.name || '').toLowerCase().includes(searchQuery) ||
+                (i.validator?.name || '').toLowerCase().includes(searchQuery) ||
+                i.state.toLowerCase().includes(searchQuery) ||
+                i.carrier.toLowerCase().includes(searchQuery)
+            );
+        }
+
+        // Dropdown filters
+        if (filterDept) res = res.filter(i => i.originator.dept === filterDept);
+        if (filterState) res = res.filter(i => i.state === filterState);
+        if (filterYear) res = res.filter(i => String(i.policyYear) === filterYear);
+
+        // Sort
+        switch (sortMode) {
+            case 'date_desc': res.sort((a, b) => new Date(b.createdDate) - new Date(a.createdDate)); break;
+            case 'date_asc': res.sort((a, b) => new Date(a.createdDate) - new Date(b.createdDate)); break;
+            case 'age_desc': res.sort((a, b) => b.ageDays - a.ageDays); break;
+            case 'sla_desc': res.sort((a, b) => (b.daysWithCarrier || 0) - (a.daysWithCarrier || 0)); break;
+        }
+
+        filtered = res;
+        renderTable();
+        updateCounts();
+    }
+
+    // ── Is action required for current role? ──
+    function isActionRequired(inq) {
+        if (activeRole === 'validator') {
+            return ['submitted', 'carrier_responded', 'additional_info', 'approved'].includes(inq.status);
+        } else {
+            return ['awaiting_originator'].includes(inq.status);
+        }
+    }
+
+    // ── Render Table ──
+    function renderTable() {
+        if (filtered.length === 0) { $body.innerHTML = ''; $empty.classList.remove('hidden'); return; }
+        $empty.classList.add('hidden');
+        $body.innerHTML = filtered.map(inq => {
+            const isActive = inq.id === activeId ? ' active-row' : '';
+            const ageClass = inq.ageDays > 60 ? 'crit' : inq.ageDays > 30 ? 'warn' : '';
+            const slaVal = inq.daysWithCarrier;
+            const slaClass = slaVal > 30 ? 'crit' : slaVal > 14 ? 'warn' : '';
+            const statusLabel = STATUS_DEFS[inq.status]?.label || inq.status;
+            return `<tr data-id="${inq.id}" class="${isActive}" title="${statusLabel}">
+                <td class="col-status"><span class="status-dot ${inq.status}"></span></td>
+                <td class="col-id"><strong>${inq.id}</strong></td>
+                <td class="col-dept"><span class="dept-tag ${inq.originator.dept}">${inq.originator.dept}</span></td>
+                <td class="col-claim">${inq.claimNumber}</td>
+                <td class="col-state">${inq.state}</td>
+                <td class="col-carrier">${truncate(inq.carrier, 18)}</td>
+                <td class="col-originator">${inq.originator.name.split(' ')[1]}</td>
+                <td class="col-validator">${inq.validator ? inq.validator.name.split(' ')[1] : '—'}</td>
+                <td class="col-date">${shortDate(inq.createdDate)}</td>
+                <td class="col-age"><span class="age-cell ${ageClass}">${inq.ageDays}d</span></td>
+                <td class="col-sla"><span class="sla-cell ${slaClass}">${slaVal != null ? slaVal + 'd' : '—'}</span></td>
+                <td class="col-subject">${truncate(inq.subject, 32)}</td>
+            </tr>`;
+        }).join('');
+        $body.querySelectorAll('tr[data-id]').forEach(row => {
+            row.addEventListener('click', () => openPanel(row.dataset.id));
+        });
+    }
+
+    // ── Counts ──
+    function updateCounts() {
+        const c = s => inquiries.filter(i => i.status === s).length;
+        const actionCount = inquiries.filter(i => isActionRequired(i)).length;
+        setText('cAll', inquiries.length);
+        setText('cAction', actionCount);
+        setText('cDraft', c('draft'));
+        setText('cSubmitted', c('submitted'));
+        setText('cUnderReview', c('under_review'));
+        setText('cSentCarrier', c('sent_to_carrier'));
+        setText('cCarrierResp', c('carrier_responded'));
+        setText('cValidatorRev', c('validator_review'));
+        setText('cAwaitOrig', c('awaiting_originator'));
+        setText('cAddlInfo', c('additional_info'));
+        setText('cApproved', c('approved'));
+        setText('cClosed', c('closed'));
+        setText('actionBadge', actionCount);
+    }
+
+    // ── Open Detail Panel ──
+    function openPanel(id) {
+        const inq = inquiries.find(i => i.id === id);
+        if (!inq) return;
+        activeId = id;
+
+        // Highlight row
+        $body.querySelectorAll('tr').forEach(r => r.classList.remove('active-row'));
+        const r = $body.querySelector(`tr[data-id="${id}"]`);
+        if (r) r.classList.add('active-row');
+
+        // Fill header
+        setText('panelId', inq.id);
+        $('panelSubject').textContent = inq.subject;
+        const badge = $('panelBadge');
+        badge.className = 'badge ' + inq.status;
+        badge.textContent = STATUS_DEFS[inq.status]?.label || inq.status;
+        const deptBadge = $('panelDept');
+        deptBadge.className = 'badge dept-badge ' + inq.originator.dept;
+        deptBadge.textContent = inq.originator.dept;
+        setText('panelAge', inq.ageDays + ' days old');
+
+        // SLA tag
+        const slaTag = $('panelSLA');
+        if (inq.daysWithCarrier != null) {
+            slaTag.classList.remove('hidden');
+            const slaClass = inq.daysWithCarrier > 30 ? 'crit' : inq.daysWithCarrier > 14 ? 'warn' : 'ok';
+            slaTag.className = 'sla-tag ' + slaClass;
+            slaTag.textContent = `⏱ ${inq.daysWithCarrier}d with carrier`;
+        } else {
+            slaTag.classList.add('hidden');
+        }
+
+        // Pipeline
+        renderPipeline(inq);
+
+        // Details tab
+        setText('dClaim', inq.claimNumber);
+        setText('dPolicy', inq.policyNumber);
+        setText('dState', inq.state);
+        setText('dYear', inq.policyYear);
+        setText('dCarrier', inq.carrier);
+        setText('dOriginator', `${inq.originator.name} (${inq.originator.role}, ${inq.originator.dept})`);
+        setText('dValidator', inq.validator ? `${inq.validator.name} (${inq.validator.title})` : 'Unassigned');
+        setText('dCreated', longDate(inq.createdDate));
+        $('dBody').textContent = inq.body;
+
+        // Carrier thread
+        renderThread(inq);
+
+        // Notes
+        renderNotes(inq);
+
+        // Timeline
+        renderTimeline(inq);
+
+        // Actions
+        renderActions(inq);
+
+        // Show
+        $panel.classList.remove('hidden');
+        $overlay.classList.remove('hidden');
+        requestAnimationFrame(() => { $panel.classList.add('visible'); $overlay.classList.add('visible'); });
+
+        // Activate first tab
+        switchTab('details');
+    }
+
+    function closePanel() {
+        $panel.classList.remove('visible');
+        $overlay.classList.remove('visible');
+        setTimeout(() => { $panel.classList.add('hidden'); $overlay.classList.add('hidden'); }, 350);
+        activeId = null;
+        $body.querySelectorAll('tr').forEach(r => r.classList.remove('active-row'));
+    }
+
+    function bindPanelClose() {
+        $('panelClose').addEventListener('click', closePanel);
+        $overlay.addEventListener('click', closePanel);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+    }
+
+    // ── Panel Tabs ──
+    function bindPanelTabs() {
+        document.querySelectorAll('.ptab').forEach(t => {
+            t.addEventListener('click', () => switchTab(t.dataset.tab));
+        });
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tab === tab));
+    }
+
+    // ── Pipeline ──
+    function renderPipeline(inq) {
+        const statusOrder = PIPELINE_STEPS.map(s => s.key);
+        let currentIdx = statusOrder.indexOf(inq.status);
+        // Resolved internally maps to after under_review
+        if (inq.resolvedInternally) currentIdx = Math.max(currentIdx, 2);
+        if (currentIdx === -1) currentIdx = 0;
+
+        $('pipeline').innerHTML = PIPELINE_STEPS.map((step, i) => {
+            let cls = 'future';
+            if (i < currentIdx) cls = 'done';
+            else if (i === currentIdx) cls = 'current';
+            const arrow = i < PIPELINE_STEPS.length - 1 ? '<span class="pipe-arrow">›</span>' : '';
+            return `<span class="pipe-step ${cls}">${step.label}</span>${arrow}`;
+        }).join('');
+    }
+
+    // ── Carrier Thread ──
+    function renderThread(inq) {
+        const container = $('carrierThread');
+        if (!inq.carrierMessages || inq.carrierMessages.length === 0) {
+            container.innerHTML = '<p class="no-messages">No carrier correspondence yet.</p>';
+            return;
+        }
+        container.innerHTML = inq.carrierMessages.map(m => {
+            const side = m.from === 'Carrier' ? 'carrier' : 'ncci';
+            return `<div class="msg ${side}">
+                <div class="msg-author">${esc(m.by)}</div>
+                ${esc(m.message)}
+                <div class="msg-date">${longDate(m.date)}</div>
+            </div>`;
+        }).join('');
+    }
+
+    // ── Notes ──
+    function renderNotes(inq) {
+        const container = $('notesList');
+        if (!inq.internalNotes || inq.internalNotes.length === 0) {
+            container.innerHTML = '<p class="no-notes">No internal notes yet.</p>';
+            return;
+        }
+        container.innerHTML = inq.internalNotes.map(n => `
+            <div class="note-card">
+                <div class="note-meta"><span>${esc(n.by)}</span><span>${shortDate(n.date)}</span></div>
+                <div class="note-text">${esc(n.text)}</div>
+            </div>
+        `).join('');
+    }
+
+    function bindNotes() {
+        $('addNoteBtn').addEventListener('click', () => {
+            const text = $('noteInput').value.trim();
+            if (!text || !activeId) return;
+            const inq = inquiries.find(i => i.id === activeId);
+            if (!inq) return;
+            const author = activeRole === 'validator' ? (inq.validator?.name || 'Data Analyst') : inq.originator.name;
+            inq.internalNotes.push({ by: author, date: new Date().toISOString(), text });
+            $('noteInput').value = '';
+            renderNotes(inq);
+            toast('Note added.');
+        });
+    }
+
+    // ── Carrier Reply ──
+    function bindCarrierReply() {
+        $('sendToCarrierBtn').addEventListener('click', () => {
+            const text = $('carrierReply').value.trim();
+            if (!text || !activeId) return;
+            const inq = inquiries.find(i => i.id === activeId);
+            if (!inq) return;
+            inq.carrierMessages.push({ from: 'NCCI', by: inq.validator?.name || 'Data Analyst', date: new Date().toISOString(), message: text });
+            if (inq.status !== 'sent_to_carrier') {
+                changeStatus(inq, 'sent_to_carrier', 'Sent inquiry to carrier');
+                inq.sentToCarrierDate = new Date().toISOString();
+                inq.daysWithCarrier = 0;
+            }
+            $('carrierReply').value = '';
+            renderThread(inq);
+            refresh();
+            openPanel(inq.id);
+            toast('Message sent to carrier.');
+        });
+    }
+
+    // ── Timeline ──
+    function renderTimeline(inq) {
+        const container = $('timelineList');
+        const acts = [...inq.activities].reverse();
+        container.innerHTML = acts.map((a, i) => {
+            const cls = i === 0 ? 'current' : 'done';
+            return `<div class="tl-item ${cls}">
+                <div class="tl-action">${statusActionLabel(a.action)}</div>
+                <div class="tl-detail">${esc(a.detail)}</div>
+                <div class="tl-meta">${esc(a.by)} · ${esc(a.role)} · ${longDate(a.date)}</div>
+            </div>`;
+        }).join('');
+    }
+
+    function statusActionLabel(action) {
+        const map = {
+            created: '📝 Created', submitted: '📤 Submitted', assigned: '👤 Assigned',
+            under_review: '🔍 Under Review', resolved_internally: '✅ Resolved Internally',
+            sent_to_carrier: '📨 Sent to Carrier', carrier_responded: '📩 Carrier Responded',
+            validator_review: '🔎 Validator Review', awaiting_originator: '📢 Routed to Originator',
+            additional_info: '🔄 Additional Info Requested', approved: '✅ Approved', closed: '🔒 Closed',
+        };
+        return map[action] || action;
+    }
+
+    // ── Dynamic Action Buttons ──
+    function renderActions(inq) {
+        const bar = $('actionBar');
+        if (!inq) { bar.innerHTML = ''; return; }
+
+        let html = `<span class="action-bar-label">Actions as <strong>${activeRole === 'validator' ? 'Data Analyst' : 'Originator'}</strong></span>`;
+
+        if (activeRole === 'validator') {
+            switch (inq.status) {
+                case 'submitted':
+                    html += btn('primary', 'Begin Review', 'beginReview'); break;
+                case 'under_review':
+                    html += btn('primary', 'Send to Carrier', 'sendCarrier');
+                    html += btn('success', 'Resolve Internally', 'resolveInternal'); break;
+                case 'carrier_responded':
+                case 'additional_info':
+                    html += btn('primary', 'Review Response', 'reviewResponse'); break;
+                case 'validator_review':
+                    html += btn('success', 'Approve & Route to Originator', 'routeOriginator');
+                    html += btn('danger', 'Return to Carrier', 'returnCarrier'); break;
+                case 'approved':
+                    html += btn('success', 'Close Inquiry', 'closeInquiry'); break;
+            }
+        } else { // originator
+            switch (inq.status) {
+                case 'draft':
+                    html += btn('primary', 'Submit to Analyst', 'submitDraft'); break;
+                case 'awaiting_originator':
+                    html += btn('success', 'Approve Response', 'approveResponse');
+                    html += btn('danger', 'Request More Info', 'requestMore'); break;
+            }
+        }
+
+        bar.innerHTML = html;
+
+        // Bind action buttons
+        bar.querySelectorAll('[data-action]').forEach(b => {
+            b.addEventListener('click', () => handleAction(b.dataset.action, inq));
+        });
+    }
+
+    function btn(type, label, action) {
+        return `<button class="btn-${type}" data-action="${action}">${label}</button>`;
+    }
+
+    function handleAction(action, inq) {
+        const validatorName = inq.validator?.name || 'Data Analyst';
+        const originatorName = inq.originator.name;
+
+        switch (action) {
+            case 'beginReview':
+                changeStatus(inq, 'under_review', `${validatorName} began research and analysis`);
+                toast('Inquiry moved to Under Review.');
+                break;
+            case 'sendCarrier':
+                switchTab('conversation');
+                toast('Switch to Carrier Thread to compose your message.');
+                return; // Don't refresh yet
+            case 'resolveInternal':
+                changeStatus(inq, 'awaiting_originator', `Resolved internally — auto-routed to ${originatorName} (${inq.originator.dept}) for review`);
+                inq.resolvedInternally = true;
+                toast('Resolved internally. Auto-routed to originator.');
+                break;
+            case 'reviewResponse':
+                changeStatus(inq, 'validator_review', `${validatorName} reviewing carrier response`);
+                toast('Status updated to Validator Review.');
+                break;
+            case 'routeOriginator':
+                changeStatus(inq, 'awaiting_originator', `Response verified — auto-routed to ${originatorName} (${inq.originator.dept}) for review`);
+                toast('Auto-routed to originator for review.');
+                break;
+            case 'returnCarrier':
+                changeStatus(inq, 'sent_to_carrier', `Returned to carrier for additional information`);
+                inq.daysWithCarrier = 0;
+                switchTab('conversation');
+                toast('Returned to carrier. Compose your follow-up.');
+                break;
+            case 'closeInquiry':
+                changeStatus(inq, 'closed', `Inquiry closed by ${validatorName}`);
+                toast('Inquiry closed.');
+                break;
+            case 'submitDraft':
+                changeStatus(inq, 'submitted', `Submitted to Data Analyst queue by ${originatorName}`);
+                toast('Inquiry submitted to analyst queue.');
+                break;
+            case 'approveResponse':
+                changeStatus(inq, 'approved', `Response approved by ${originatorName} (${inq.originator.dept})`);
+                toast('Response approved. Validator can now close.');
+                break;
+            case 'requestMore':
+                changeStatus(inq, 'additional_info', `${originatorName} (${inq.originator.dept}) requested additional information`);
+                toast('Additional info requested. Routed back to analyst.');
+                break;
+        }
+        refresh();
+        openPanel(inq.id);
+    }
+
+    function changeStatus(inq, newStatus, detail) {
+        const by = activeRole === 'validator' ? (inq.validator?.name || 'Data Analyst') : inq.originator.name;
+        const role = activeRole === 'validator' ? (inq.validator?.title || 'Data Analyst') : inq.originator.role + ' (' + inq.originator.dept + ')';
+        // Auto-route entries use 'System'
+        const isAutoRoute = detail.includes('auto-routed') || detail.includes('Auto-route');
+        inq.activities.push({
+            action: newStatus,
+            by: isAutoRoute ? 'System' : by,
+            role: isAutoRoute ? 'Auto-route' : role,
+            date: new Date().toISOString(),
+            detail: detail,
+        });
+        inq.status = newStatus;
+    }
+
+    // ── New Inquiry Modal ──
+    function bindModal() {
+        $('newInquiryBtn').addEventListener('click', () => $('modalOverlay').classList.remove('hidden'));
+        $('modalClose').addEventListener('click', () => $('modalOverlay').classList.add('hidden'));
+        $('modalOverlay').addEventListener('click', e => { if (e.target === $('modalOverlay')) $('modalOverlay').classList.add('hidden'); });
+
+        $('submitInquiryBtn').addEventListener('click', () => createInquiry('submitted'));
+        $('saveDraftBtn').addEventListener('click', () => createInquiry('draft'));
+    }
+
+    function createInquiry(status) {
+        const dept = $('newDept').value;
+        const state = $('newState').value;
+        const claim = $('newClaim').value.trim();
+        const policy = $('newPolicy').value.trim();
+        const year = $('newYear').value;
+        const carrier = $('newCarrier').value;
+        const subject = $('newSubject').value.trim();
+        const body = $('newBody').value.trim();
+
+        if (!subject || !body) { toast('Please fill in subject and description.'); return; }
+
+        const originator = ORIGINATORS.find(o => o.dept === dept) || ORIGINATORS[0];
+        const id = `INQ-${String(new Date().getFullYear()).slice(2)}${String(inquiries.length + 1).padStart(5, '0')}`;
+        const now = new Date().toISOString();
+
+        const activities = [{ action: 'created', by: originator.name, role: originator.role + ' (' + dept + ')', date: now, detail: 'Inquiry created from ' + dept + ' analysis' }];
+        if (status === 'submitted') {
+            activities.push({ action: 'submitted', by: originator.name, role: originator.role, date: now, detail: 'Submitted to Data Analyst queue' });
+        }
+
+        const inq = {
+            id, subject, body, originator,
+            validator: status === 'submitted' ? VALIDATORS[Math.floor(Math.random() * VALIDATORS.length)] : null,
+            carrier: carrier || 'TBD', claimNumber: claim || 'TBD', policyNumber: policy || 'TBD',
+            state: state || 'TBD', policyYear: parseInt(year), status,
+            activities, internalNotes: [], carrierMessages: [],
+            sentToCarrierDate: null, carrierRespondedDate: null,
+            daysWithCarrier: null, ageDays: 0, resolvedInternally: false, createdDate: now,
+        };
+
+        inquiries.unshift(inq);
+        $('modalOverlay').classList.add('hidden');
+        // Clear form
+        ['newSubject', 'newBody', 'newClaim', 'newPolicy'].forEach(id => $(id).value = '');
+        refresh();
+        toast(status === 'draft' ? 'Draft saved.' : 'Inquiry submitted to analyst queue.');
+    }
+
+    // ── Helpers ──
+    function setText(id, val) { $(id).textContent = val; }
+    function shortDate(iso) { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+    function longDate(iso) { return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }); }
+    function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+    function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function debounce(fn, ms) { let t; return function (...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); }; }
+    function toast(msg) {
+        const el = document.createElement('div');
+        el.className = 'toast'; el.textContent = '✓ ' + msg;
+        $toasts.appendChild(el);
+        setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 3000);
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+})();
