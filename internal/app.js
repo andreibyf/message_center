@@ -520,7 +520,14 @@
 
         // Bind action buttons
         bar.querySelectorAll('[data-action]').forEach(b => {
-            b.addEventListener('click', () => handleAction(b.dataset.action, inq));
+            b.addEventListener('click', () => {
+                const act = b.dataset.action;
+                if (act === 'returnCarrier' || act === 'requestMore') {
+                    showRejectPrompt(inq, act);
+                } else {
+                    handleAction(act, inq);
+                }
+            });
         });
     }
 
@@ -555,10 +562,7 @@
                 toast('Auto-routed to originator for review.');
                 break;
             case 'returnCarrier':
-                changeStatus(inq, 'sent_to_carrier', `Returned to carrier for additional information`);
-                inq.daysWithCarrier = 0;
-                switchTab('conversation');
-                toast('Returned to carrier. Compose your follow-up.');
+                // Handled via showRejectPrompt — should not reach here directly
                 break;
             case 'closeInquiry':
                 changeStatus(inq, 'closed', `Inquiry closed by ${validatorName}`);
@@ -581,12 +585,82 @@
                 toast('Response approved. Validator can now close.');
                 break;
             case 'requestMore':
-                changeStatus(inq, 'additional_info', `${originatorName} (${inq.originator.dept}) requested additional information`);
-                toast('Additional info requested. Routed back to analyst.');
+                // Handled via showRejectPrompt — should not reach here directly
                 break;
         }
         refresh();
         openPanel(inq.id);
+    }
+
+    // ── Reject Prompt (requires reason) ──
+    function showRejectPrompt(inq, action) {
+        const bar = $('actionBar');
+        const isReturn = action === 'returnCarrier';
+        const title = isReturn ? 'Return to Carrier' : 'Request Additional Information';
+        const placeholder = isReturn
+            ? 'Explain what additional information is needed from the carrier…'
+            : 'Explain why additional information is needed…';
+
+        bar.innerHTML = `
+            <div class="reject-prompt">
+                <div class="reject-prompt-header">
+                    <span class="reject-prompt-title">⚠️ ${title}</span>
+                    <button class="icon-btn reject-cancel" id="rejectCancel" title="Cancel">
+                        <svg width="14" height="14" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14M14 4L4 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <textarea id="rejectReason" rows="3" class="reject-textarea" placeholder="${placeholder}"></textarea>
+                <div class="reject-actions">
+                    <button class="btn-secondary" id="rejectCancelBtn">Cancel</button>
+                    <button class="btn-danger" id="rejectConfirmBtn">${title}</button>
+                </div>
+            </div>
+        `;
+
+        // Focus the textarea
+        requestAnimationFrame(() => $('rejectReason').focus());
+
+        // Cancel
+        const cancel = () => renderActions(inq);
+        $('rejectCancel').addEventListener('click', cancel);
+        $('rejectCancelBtn').addEventListener('click', cancel);
+
+        // Confirm
+        $('rejectConfirmBtn').addEventListener('click', () => {
+            const reason = $('rejectReason').value.trim();
+            if (!reason) {
+                $('rejectReason').style.borderColor = 'var(--red)';
+                $('rejectReason').setAttribute('placeholder', '⚠ A reason is required before sending back.');
+                return;
+            }
+
+            const validatorName = inq.validator?.name || 'Data Analyst';
+            const originatorName = inq.originator.name;
+
+            if (isReturn) {
+                changeStatus(inq, 'sent_to_carrier', `Returned to carrier: ${reason}`);
+                inq.daysWithCarrier = 0;
+                inq.internalNotes.push({
+                    by: validatorName,
+                    date: new Date().toISOString(),
+                    text: `Return reason: ${reason}`
+                });
+                toast('Returned to carrier with explanation.');
+                refresh();
+                openPanel(inq.id);
+                switchTab('conversation');
+            } else {
+                changeStatus(inq, 'additional_info', `${originatorName} (${inq.originator.dept}) requested additional info: ${reason}`);
+                inq.internalNotes.push({
+                    by: originatorName,
+                    date: new Date().toISOString(),
+                    text: `Additional info request: ${reason}`
+                });
+                toast('Sent back with explanation. Routed to analyst.');
+                refresh();
+                openPanel(inq.id);
+            }
+        });
     }
 
     function changeStatus(inq, newStatus, detail) {
