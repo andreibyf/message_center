@@ -723,9 +723,9 @@
         let originator, validator, activities;
 
         if (activeRole === 'validator') {
-            // Validator-initiated: they are both originator and analyst
+            // Validator-initiated: they are the analyst, dept comes from dropdown
             const v = VALIDATORS[Math.floor(Math.random() * VALIDATORS.length)];
-            originator = { name: v.name, dept: 'Data Analytics', role: v.title };
+            originator = { name: v.name, dept: dept, role: v.title };
             validator = v;
             activities = [
                 { action: 'created', by: v.name, role: v.title, date: now, detail: 'Inquiry created by Data Analyst (self-initiated)' },
