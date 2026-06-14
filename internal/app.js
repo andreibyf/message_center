@@ -680,11 +680,28 @@
 
     // ── New Inquiry Modal ──
     function bindModal() {
-        $('newInquiryBtn').addEventListener('click', () => $('modalOverlay').classList.remove('hidden'));
+        $('newInquiryBtn').addEventListener('click', () => {
+            renderModalFooter();
+            $('modalOverlay').classList.remove('hidden');
+        });
         $('modalClose').addEventListener('click', () => $('modalOverlay').classList.add('hidden'));
         $('modalOverlay').addEventListener('click', e => { if (e.target === $('modalOverlay')) $('modalOverlay').classList.add('hidden'); });
+    }
 
-        $('submitInquiryBtn').addEventListener('click', () => createInquiry('submitted'));
+    function renderModalFooter() {
+        const footer = $('modalFooter');
+        if (activeRole === 'validator') {
+            footer.innerHTML = `
+                <button class="btn-secondary" id="saveDraftBtn">Save as Draft</button>
+                <button class="btn-primary" id="submitInquiryBtn">Create & Begin Review</button>
+            `;
+        } else {
+            footer.innerHTML = `
+                <button class="btn-secondary" id="saveDraftBtn">Save as Draft</button>
+                <button class="btn-primary" id="submitInquiryBtn">Submit to Analyst</button>
+            `;
+        }
+        $('submitInquiryBtn').addEventListener('click', () => createInquiry(activeRole === 'validator' ? 'under_review' : 'submitted'));
         $('saveDraftBtn').addEventListener('click', () => createInquiry('draft'));
     }
 
@@ -700,18 +717,36 @@
 
         if (!subject || !body) { toast('Please fill in subject and description.'); return; }
 
-        const originator = ORIGINATORS.find(o => o.dept === dept) || ORIGINATORS[0];
         const id = `INQ-${String(new Date().getFullYear()).slice(2)}${String(inquiries.length + 1).padStart(5, '0')}`;
         const now = new Date().toISOString();
 
-        const activities = [{ action: 'created', by: originator.name, role: originator.role + ' (' + dept + ')', date: now, detail: 'Inquiry created from ' + dept + ' analysis' }];
-        if (status === 'submitted') {
-            activities.push({ action: 'submitted', by: originator.name, role: originator.role, date: now, detail: 'Submitted to Data Analyst queue' });
+        let originator, validator, activities;
+
+        if (activeRole === 'validator') {
+            // Validator-initiated: they are both originator and analyst
+            const v = VALIDATORS[Math.floor(Math.random() * VALIDATORS.length)];
+            originator = { name: v.name, dept: 'Data Analytics', role: v.title };
+            validator = v;
+            activities = [
+                { action: 'created', by: v.name, role: v.title, date: now, detail: 'Inquiry created by Data Analyst (self-initiated)' },
+            ];
+            if (status === 'under_review') {
+                activities.push({ action: 'under_review', by: v.name, role: v.title, date: now, detail: `${v.name} began research and analysis` });
+            }
+        } else {
+            // Originator-initiated
+            originator = ORIGINATORS.find(o => o.dept === dept) || ORIGINATORS[0];
+            validator = status === 'submitted' ? VALIDATORS[Math.floor(Math.random() * VALIDATORS.length)] : null;
+            activities = [
+                { action: 'created', by: originator.name, role: originator.role + ' (' + dept + ')', date: now, detail: 'Inquiry created from ' + dept + ' analysis' },
+            ];
+            if (status === 'submitted') {
+                activities.push({ action: 'submitted', by: originator.name, role: originator.role, date: now, detail: 'Submitted to Data Analyst queue' });
+            }
         }
 
         const inq = {
-            id, subject, body, originator,
-            validator: status === 'submitted' ? VALIDATORS[Math.floor(Math.random() * VALIDATORS.length)] : null,
+            id, subject, body, originator, validator,
             carrier: carrier || 'TBD', claimNumber: claim || 'TBD', policyNumber: policy || 'TBD',
             state: state || 'TBD', policyYear: parseInt(year), status,
             activities, internalNotes: [], carrierMessages: [],
@@ -724,7 +759,13 @@
         // Clear form
         ['newSubject', 'newBody', 'newClaim', 'newPolicy'].forEach(id => $(id).value = '');
         refresh();
-        toast(status === 'draft' ? 'Draft saved.' : 'Inquiry submitted to analyst queue.');
+
+        const msgs = {
+            'draft': 'Draft saved.',
+            'submitted': 'Inquiry submitted to analyst queue.',
+            'under_review': 'Inquiry created — now under your review.',
+        };
+        toast(msgs[status] || 'Inquiry created.');
     }
 
     // ── Helpers ──
